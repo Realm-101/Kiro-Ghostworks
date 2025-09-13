@@ -182,6 +182,110 @@ class PRCommentBot {
     }
 
     /**
+     * Generate artifact links section
+     */
+    generateArtifactLinksSection(scoreData) {
+        if (!scoreData.artifact_links) {
+            return '';
+        }
+
+        let section = '### 📎 Detailed Reports & Artifacts\n\n';
+        
+        const runId = scoreData.workflow_run_id;
+        const repoUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+        
+        // Test artifacts
+        section += '**Test Reports:**\n';
+        section += `- 🧪 [Unit Test Results](${repoUrl}/actions/runs/${runId}#artifacts) - JUnit XML with detailed test breakdown\n`;
+        section += `- 🔗 [Integration Test Results](${repoUrl}/actions/runs/${runId}#artifacts) - API and database integration tests\n`;
+        section += `- 🎭 [Playwright E2E Report](${repoUrl}/actions/runs/${runId}#artifacts) - Interactive HTML report with screenshots\n`;
+        
+        // Coverage artifacts
+        section += '\n**Coverage Reports:**\n';
+        section += `- 📊 [Coverage HTML Report](${repoUrl}/actions/runs/${runId}#artifacts) - Interactive coverage browser\n`;
+        section += `- 📈 [Coverage XML](${repoUrl}/actions/runs/${runId}#artifacts) - Machine-readable coverage data\n`;
+        
+        // Performance artifacts
+        section += '\n**Performance Reports:**\n';
+        section += `- ⚡ [K6 Performance Results](${repoUrl}/actions/runs/${runId}#artifacts) - JSON with detailed metrics\n`;
+        section += `- 📊 [Performance Summary](${repoUrl}/actions/runs/${runId}#artifacts) - Human-readable performance report\n`;
+        
+        // Security artifacts
+        section += '\n**Security Scans:**\n';
+        section += `- 🔒 [OWASP ZAP Report](${repoUrl}/actions/runs/${runId}#artifacts) - Web application security scan\n`;
+        section += `- 📦 [Dependency Scan](${repoUrl}/actions/runs/${runId}#artifacts) - Vulnerability scan of dependencies\n`;
+        
+        // Build artifacts
+        section += '\n**Build Artifacts:**\n';
+        section += `- 🏗️ [Build Logs](${repoUrl}/actions/runs/${runId}) - Complete CI/CD execution logs\n`;
+        section += `- 📋 [Kiro Score Details](${repoUrl}/actions/runs/${runId}#artifacts) - Complete scoring breakdown JSON\n`;
+        
+        section += '\n';
+        return section;
+    }
+
+    /**
+     * Generate deployment action section
+     */
+    generateDeploymentSection(scoreData) {
+        if (!scoreData.grade_info) {
+            return '';
+        }
+
+        const gradeInfo = scoreData.grade_info;
+        let section = '### 🚀 Deployment Status\n\n';
+        
+        const actionEmojis = {
+            'AUTO_DEPLOY': '✅',
+            'MANUAL_REVIEW': '📋',
+            'BLOCK_WITH_OVERRIDE': '⚠️',
+            'BLOCK': '❌'
+        };
+        
+        const emoji = actionEmojis[gradeInfo.deployment_action] || '❓';
+        section += `${emoji} **${gradeInfo.deployment_action.replace('_', ' ')}**: ${gradeInfo.description}\n\n`;
+        
+        // Show thresholds for transparency
+        if (gradeInfo.thresholds) {
+            section += '**Quality Thresholds:**\n';
+            Object.entries(gradeInfo.thresholds).forEach(([action, threshold]) => {
+                const actionName = action.replace('_', ' ').toUpperCase();
+                section += `- ${actionName}: ${threshold}\n`;
+            });
+            section += '\n';
+        }
+        
+        return section;
+    }
+
+    /**
+     * Generate score transparency section
+     */
+    generateTransparencySection(scoreData) {
+        if (!scoreData.transparency || !scoreData.score_breakdown) {
+            return '';
+        }
+
+        let section = '### 🔍 Score Transparency\n\n';
+        
+        section += '**Scoring Weights & Rationale:**\n';
+        Object.entries(scoreData.score_breakdown).forEach(([category, details]) => {
+            section += `- **${category.charAt(0).toUpperCase() + category.slice(1)}** (${details.weight}%): ${details.rationale}\n`;
+            section += `  - Score: ${details.score.toFixed(1)}/${details.weight} points\n`;
+        });
+        
+        section += '\n**Performance Targets by Route Class:**\n';
+        if (scoreData.score_breakdown.performance && scoreData.score_breakdown.performance.route_targets) {
+            Object.entries(scoreData.score_breakdown.performance.route_targets).forEach(([route, target]) => {
+                section += `- ${route.replace('_', ' ')}: ${target}ms\n`;
+            });
+        }
+        
+        section += '\n';
+        return section;
+    }
+
+    /**
      * Generate the complete PR comment
      */
     generateComment(scoreData) {
@@ -193,6 +297,9 @@ class PRCommentBot {
         
         // Header with score
         comment += `**Overall Score: ${scoreData.overall_score.toFixed(1)}/100 ${emoji} Grade ${scoreData.grade}**\n\n`;
+        
+        // Deployment status (prominent placement)
+        comment += this.generateDeploymentSection(scoreData);
         
         // Quick summary
         const totalTests = Object.values(scoreData.tests).reduce((sum, test) => sum + test.total, 0);
@@ -218,28 +325,19 @@ class PRCommentBot {
         // Security section
         comment += this.generateSecuritySection(scoreData.security);
         
+        // Artifact links (key improvement)
+        comment += this.generateArtifactLinksSection(scoreData);
+        
+        // Score transparency
+        comment += this.generateTransparencySection(scoreData);
+        
         // Recommendations
         comment += this.generateRecommendationsSection(scoreData.recommendations);
         
-        // Score breakdown
-        if (scoreData.score_breakdown) {
-            comment += '### 📊 Score Breakdown\n\n';
-            Object.entries(scoreData.score_breakdown).forEach(([key, value]) => {
-                const icon = {
-                    'tests': '🧪',
-                    'coverage': '📊',
-                    'performance': '⚡',
-                    'security': '🔒'
-                }[key] || '📋';
-                comment += `${icon} **${key.charAt(0).toUpperCase() + key.slice(1)}**: ${value}\n`;
-            });
-            comment += '\n';
-        }
-        
         // Footer
         comment += '---\n';
-        comment += `*Generated at ${timestamp} for commit ${commitSha}*\n`;
-        comment += `*Workflow: [${scoreData.workflow_run_id}](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${scoreData.workflow_run_id})*`;
+        comment += `*Generated at ${timestamp} for commit [${commitSha}](${scoreData.artifact_links?.commit || '#'})*\n`;
+        comment += `*Workflow: [Run ${scoreData.workflow_run_id}](${scoreData.artifact_links?.workflow_run || '#'}) | [All Artifacts](${scoreData.artifact_links?.workflow_run || '#'}#artifacts)*`;
         
         return comment;
     }

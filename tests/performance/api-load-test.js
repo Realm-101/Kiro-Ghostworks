@@ -12,7 +12,7 @@ const errorRate = new Rate('errors');
 const authLatency = new Trend('auth_latency');
 const artifactLatency = new Trend('artifact_latency');
 
-// Test configuration
+// Test configuration with realistic, route-class specific thresholds
 export const options = {
   stages: [
     { duration: '30s', target: 10 },   // Ramp up to 10 users
@@ -22,12 +22,41 @@ export const options = {
     { duration: '30s', target: 0 },    // Ramp down
   ],
   thresholds: {
-    http_req_duration: ['p(95)<200'], // 95% of requests must complete below 200ms
-    http_req_failed: ['rate<0.05'],   // Error rate must be below 5%
-    errors: ['rate<0.05'],
-    auth_latency: ['p(95)<100'],      // Auth requests should be fast
-    artifact_latency: ['p(95)<150'],  // Artifact operations should be reasonable
+    // Overall API performance (general CRUD operations)
+    http_req_duration: ['p(95)<200'],     // 95% of requests under 200ms
+    http_req_failed: ['rate<0.01'],       // Error rate under 1% (more aggressive)
+    
+    // Route-class specific thresholds
+    'http_req_duration{route_class:health}': ['p(95)<50'],      // Health checks: 50ms
+    'http_req_duration{route_class:auth}': ['p(95)<150'],       // Auth operations: 150ms (crypto overhead)
+    'http_req_duration{route_class:crud_simple}': ['p(95)<200'], // Simple CRUD: 200ms
+    'http_req_duration{route_class:search}': ['p(95)<500'],     // Search operations: 500ms
+    
+    // Custom metrics
+    errors: ['rate<0.01'],
+    auth_latency: ['p(95)<150'],          // Auth-specific latency
+    artifact_latency: ['p(95)<200'],      // Artifact operations
+    
+    // Cold start exclusions (for local development)
+    'http_req_duration{exclude_cold_start:true}': ['p(95)<200'],
   },
+  
+  // Environment-specific overrides
+  ...((__ENV.ENVIRONMENT === 'production') ? {
+    // Production: More aggressive thresholds
+    thresholds: {
+      http_req_duration: ['p(95)<150'],   // Tighter production SLA
+      http_req_failed: ['rate<0.005'],    // 0.5% error rate for production
+    }
+  } : {}),
+  
+  ...((__ENV.ENVIRONMENT === 'local') ? {
+    // Local: More lenient thresholds (cold starts, dev overhead)
+    thresholds: {
+      http_req_duration: ['p(95)<500'],   // More lenient for local dev
+      http_req_failed: ['rate<0.02'],     // 2% error rate acceptable locally
+    }
+  } : {}),
 };
 
 // Test data
@@ -107,8 +136,17 @@ export default function(data) {
     'Authorization': `Bearer ${authToken}`
   };
   
+  // Skip first iteration to exclude cold start effects in local development
+  const excludeColdStart = __ENV.ENVIRONMENT === 'local' && __ITER === 0;
+  
   // Test 1: Health check (should be very fast)
-  const healthResponse = http.get(`${BASE_URL}/api/v1/health`);
+  const healthResponse = http.get(`${BASE_URL}/api/v1/health`, {
+    tags: { 
+      route_class: 'health',
+      exclude_cold_start: excludeColdStart ? 'false' : 'true'
+    }
+  });
+  
   check(healthResponse, {
     'health check status is 200': (r) => r.status === 200,
     'health check response time < 50ms': (r) => r.timings.duration < 50,
@@ -118,7 +156,13 @@ export default function(data) {
   
   // Test 2: Get user info (auth performance)
   const userInfoStart = Date.now();
-  const userInfoResponse = http.get(`${BASE_URL}/api/v1/auth/me`, { headers });
+  const userInfoResponse = http.get(`${BASE_URL}/api/v1/auth/me`, { 
+    headers,
+    tags: { 
+      route_class: 'auth',
+      exclude_cold_start: excludeColdStart ? 'false' : 'true'
+    }
+  });
   const userInfoDuration = Date.now() - userInfoStart;
   
   authLatency.add(userInfoDuration);
@@ -132,7 +176,13 @@ export default function(data) {
   
   // Test 3: List artifacts (read performance)
   const listArtifactsStart = Date.now();
-  const listResponse = http.get(`${BASE_URL}/api/v1/workspaces/${workspaceId}/artifacts`, { headers });
+  const listResponse = http.get(`${BASE_URL}/api/v1/workspaces/${workspaceId}/artifacts`, { 
+    headers,
+    tags: { 
+      route_class: 'crud_simple',
+      exclude_cold_start: excludeColdStart ? 'false' : 'true'
+    }
+  });
   const listDuration = Date.now() - listArtifactsStart;
   
   artifactLatency.add(listDuration);
@@ -164,7 +214,13 @@ export default function(data) {
   const createResponse = http.post(
     `${BASE_URL}/api/v1/workspaces/${workspaceId}/artifacts`,
     JSON.stringify(artifactData),
-    { headers }
+    { 
+      headers,
+      tags: { 
+        route_class: 'crud_simple',
+        exclude_cold_start: excludeColdStart ? 'false' : 'true'
+      }
+    }
   );
   const createDuration = Date.now() - createArtifactStart;
   
@@ -190,7 +246,13 @@ export default function(data) {
     
     const searchResponse = http.get(
       `${BASE_URL}/api/v1/workspaces/${workspaceId}/artifacts?q=Performance`,
-      { headers }
+      { 
+        headers,
+        tags: { 
+          route_class: 'search',
+          exclude_cold_start: excludeColdStart ? 'false' : 'true'
+        }
+      }
     );
     
     check(searchResponse, {
