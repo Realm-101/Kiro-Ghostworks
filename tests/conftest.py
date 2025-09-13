@@ -203,19 +203,80 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Modify test collection to add markers based on file paths."""
+    """Modify test collection to add markers and timeouts based on file paths."""
     for item in items:
         # Add markers based on file path
         if "unit" in str(item.fspath):
             item.add_marker(pytest.mark.unit)
+            # Enforce strict timeout for unit tests
+            item.add_marker(pytest.mark.timeout(5))
         elif "integration" in str(item.fspath) or "api" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
+            item.add_marker(pytest.mark.timeout(30))
         elif "e2e" in str(item.fspath):
             item.add_marker(pytest.mark.e2e)
+            item.add_marker(pytest.mark.timeout(120))
+        elif "policy" in str(item.fspath) or "security" in str(item.fspath):
+            item.add_marker(pytest.mark.policy)
+            item.add_marker(pytest.mark.timeout(10))
+        elif "performance" in str(item.fspath):
+            item.add_marker(pytest.mark.performance)
+            item.add_marker(pytest.mark.timeout(300))
+        
+        # Mark slow tests based on function name patterns
+        if any(pattern in item.name for pattern in ['slow', 'load', 'stress', 'benchmark']):
+            item.add_marker(pytest.mark.slow)
         
         # Mark async tests
         if asyncio.iscoroutinefunction(item.function):
             item.add_marker(pytest.mark.asyncio)
+
+
+def pytest_runtest_setup(item):
+    """Setup hook to enforce time budgets per test suite."""
+    import time
+    
+    # Store start time for suite-level timing
+    if not hasattr(pytest, '_suite_start_times'):
+        pytest._suite_start_times = {}
+    
+    suite_name = item.fspath.basename
+    if suite_name not in pytest._suite_start_times:
+        pytest._suite_start_times[suite_name] = time.time()
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Teardown hook to check suite-level time budgets."""
+    import time
+    
+    # Check suite-level time budgets
+    if nextitem is None or nextitem.fspath != item.fspath:
+        # End of test suite
+        suite_name = item.fspath.basename
+        if hasattr(pytest, '_suite_start_times') and suite_name in pytest._suite_start_times:
+            elapsed = time.time() - pytest._suite_start_times[suite_name]
+            
+            # Define time budgets per suite type (in seconds)
+            time_budgets = {
+                'unit': 30,      # Unit test suites should complete in 30s
+                'integration': 180,  # Integration suites in 3 minutes
+                'policy': 60,    # Policy suites in 1 minute
+                'e2e': 600,      # E2E suites in 10 minutes
+            }
+            
+            # Determine suite type and check budget
+            for suite_type, budget in time_budgets.items():
+                if suite_type in suite_name.lower():
+                    if elapsed > budget:
+                        pytest.fail(
+                            f"Suite {suite_name} exceeded time budget: "
+                            f"{elapsed:.1f}s > {budget}s. "
+                            f"Consider optimizing or splitting the suite."
+                        )
+                    break
+            
+            # Clean up
+            del pytest._suite_start_times[suite_name]
 
 
 # Async test configuration
