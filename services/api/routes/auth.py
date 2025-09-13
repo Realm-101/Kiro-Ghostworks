@@ -151,6 +151,25 @@ async def login_user(
         span.set_attribute("auth.method", "password")
         span.set_attribute("user.email", user_data.email)
         
+        # Security check: Block demo credentials in production
+        demo_emails = {
+            "owner@acme.com", "admin@umbrella.com", "member@acme.com",
+            "researcher@umbrella.com", "manager@acme.com"
+        }
+        
+        if (settings.environment == "production" and 
+            user_data.email.lower() in demo_emails):
+            logger.warning(
+                "Demo credential login attempt blocked in production",
+                email=user_data.email,
+                environment=settings.environment,
+                request_id=getattr(request.state, "request_id", None)
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Demo credentials are disabled in production environments"
+            )
+        
         async with get_database_session() as session:
             # Find user by email
             result = await session.execute(

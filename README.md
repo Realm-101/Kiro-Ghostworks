@@ -25,9 +25,9 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
    # Edit .env with your configuration
    ```
 
-3. **Start all services**
+3. **Start all services with demo data**
    ```bash
-   docker-compose up -d
+   docker-compose --profile dev up -d
    ```
 
 4. **Initialize the database**
@@ -35,10 +35,7 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
    docker-compose exec api python -m alembic upgrade head
    ```
 
-5. **Seed demo data**
-   ```bash
-   docker-compose exec api python scripts/seed_demo_data.py
-   ```
+   Demo data will be automatically seeded when using the `dev` profile.
 
 6. **Access the platform**
    - **Web Application**: http://localhost:3000
@@ -48,11 +45,26 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
 
 ### Demo Accounts
 
+> **⚠️ SECURITY WARNING: DEMO CREDENTIALS ONLY**
+> 
+> **These credentials are ONLY available in local/development environments.**
+> **They are automatically DISABLED in staging and production deployments.**
+> **Never use these credentials in any production system.**
+
 | Email | Password | Role | Workspace |
 |-------|----------|------|-----------|
 | owner@acme.com | demo123 | Owner | Acme Corp |
 | admin@umbrella.com | demo123 | Admin | Umbrella Inc |
 | member@acme.com | demo123 | Member | Acme Corp |
+
+Demo credentials are loaded only when using the `dev` Docker Compose profile:
+```bash
+# Demo data is loaded automatically in development
+docker-compose --profile dev up -d
+
+# Production deployments exclude demo data entirely
+docker-compose -f docker-compose.prod.yml up -d
+```
 
 ## 🏗️ Architecture
 
@@ -119,11 +131,13 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
 *Screenshots: See [Monitoring Dashboards](docs/screenshots/README.md#grafana-dashboards)*
 
 ### Security Features
-- **Authentication**: JWT with refresh tokens
-- **Authorization**: RBAC with tenant isolation
+- **Authentication**: JWT with refresh tokens (HttpOnly cookies, 15min access / 7day refresh)
+- **Authorization**: RBAC with tenant isolation via PostgreSQL Row-Level Security
 - **Input Validation**: Pydantic models with sanitization
-- **Security Headers**: OWASP-compliant headers
-- **Rate Limiting**: API endpoint protection
+- **Security Headers**: Strict Content-Security-Policy and OWASP-compliant headers
+- **Rate Limiting**: API endpoint protection (60 req/min, 5 auth req/min)
+- **Refresh Token Strategy**: Secure rotation with path-restricted cookies (`/auth/refresh`)
+- **Tenant Isolation**: Database-level RLS policies prevent cross-tenant data access
 
 ### AI Integration
 - **MCP Servers**: GitHub and AWS documentation integration
@@ -256,6 +270,7 @@ Key environment variables:
 - **Demo Script**: See `docs/DEMO_SCRIPT.md`
 - **Screenshots**: See `docs/screenshots/`
 - **Security Policies**: See `.kiro/steering/security-policies.md`
+- **Security Headers & CSP**: See `services/api/SECURITY_HEADERS.md`
 - **Testing Standards**: See `.kiro/steering/testing-standards.md`
 
 ## 🎪 Demo & Tour

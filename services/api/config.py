@@ -35,7 +35,20 @@ class Settings(BaseSettings):
     # Security Headers
     security_headers_enabled: bool = True
     hsts_max_age: int = 31536000  # 1 year
-    csp_policy: str = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none';"
+    csp_policy: str = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-eval'; "  # unsafe-eval needed for Next.js dev
+        "style-src 'self' 'unsafe-inline'; "  # unsafe-inline needed for Tailwind
+        "img-src 'self' data: https:; "
+        "font-src 'self' https: data:; "
+        "connect-src 'self' https: wss:; "  # wss: for WebSocket connections
+        "media-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "upgrade-insecure-requests"
+    )
     
     # Cookie Security
     cookie_secure: bool = True

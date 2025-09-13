@@ -2,10 +2,14 @@
 """
 Demo data seeding script for Ghostworks SaaS platform.
 Creates realistic demo data including tenants, users, and artifacts.
+
+SECURITY NOTE: This script only runs in development environments.
+Demo credentials are automatically disabled in production.
 """
 
 import asyncio
 import sys
+import os
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -60,7 +64,7 @@ DEMO_TENANTS = [
 DEMO_USERS = [
     {
         "email": "owner@acme.com",
-        "password": "SecurePass123!",
+        "password": "demo123",
         "first_name": "Alice",
         "last_name": "Johnson",
         "is_verified": True,
@@ -69,7 +73,7 @@ DEMO_USERS = [
     },
     {
         "email": "admin@umbrella.com",
-        "password": "SecurePass123!",
+        "password": "demo123",
         "first_name": "Bob",
         "last_name": "Smith",
         "is_verified": True,
@@ -78,7 +82,7 @@ DEMO_USERS = [
     },
     {
         "email": "member@acme.com",
-        "password": "SecurePass123!",
+        "password": "demo123",
         "first_name": "Carol",
         "last_name": "Davis",
         "is_verified": True,
@@ -87,7 +91,7 @@ DEMO_USERS = [
     },
     {
         "email": "researcher@umbrella.com",
-        "password": "SecurePass123!",
+        "password": "demo123",
         "first_name": "David",
         "last_name": "Wilson",
         "is_verified": True,
@@ -96,7 +100,7 @@ DEMO_USERS = [
     },
     {
         "email": "manager@acme.com",
-        "password": "SecurePass123!",
+        "password": "demo123",
         "first_name": "Eva",
         "last_name": "Martinez",
         "is_verified": True,
@@ -501,20 +505,41 @@ async def seed_demo_data():
 
 async def main():
     """Main entry point."""
+    # Security check: Only allow demo data in development environments
+    environment = os.getenv("ENVIRONMENT", "development")
+    enable_demo_data = os.getenv("ENABLE_DEMO_DATA", "false").lower() == "true"
+    
+    if environment == "production":
+        print("❌ SECURITY: Demo data seeding is DISABLED in production environments")
+        print("   This is a security feature to prevent demo credentials in production.")
+        sys.exit(1)
+    
+    if not enable_demo_data and environment != "development":
+        print("❌ SECURITY: Demo data seeding is DISABLED")
+        print("   Set ENABLE_DEMO_DATA=true to enable (development only)")
+        sys.exit(1)
+    
+    print("⚠️  SECURITY WARNING: Creating demo credentials for DEVELOPMENT ONLY")
+    print("   These credentials will NOT work in production environments")
+    print()
+    
     try:
         await seed_demo_data()
         
         print("\n" + "="*60)
         print("DEMO DATA SEEDING COMPLETED SUCCESSFULLY!")
         print("="*60)
+        print("\n⚠️  SECURITY WARNING: DEMO CREDENTIALS CREATED")
+        print("   These are for DEVELOPMENT/TESTING ONLY")
+        print("   They are DISABLED in production environments")
         print("\nDemo Accounts Created:")
         print("  Acme Corp (acme-corp):")
-        print("    - owner@acme.com (Owner) - Password: SecurePass123!")
-        print("    - manager@acme.com (Admin) - Password: SecurePass123!")
-        print("    - member@acme.com (Member) - Password: SecurePass123!")
+        print("    - owner@acme.com (Owner) - Password: demo123")
+        print("    - manager@acme.com (Admin) - Password: demo123")
+        print("    - member@acme.com (Member) - Password: demo123")
         print("\n  Umbrella Inc (umbrella-inc):")
-        print("    - admin@umbrella.com (Admin) - Password: SecurePass123!")
-        print("    - researcher@umbrella.com (Member) - Password: SecurePass123!")
+        print("    - admin@umbrella.com (Admin) - Password: demo123")
+        print("    - researcher@umbrella.com (Member) - Password: demo123")
         print("\nDemo Data Summary:")
         print(f"  - 2 tenant workspaces created")
         print(f"  - 5 demo users created")

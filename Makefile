@@ -111,6 +111,25 @@ clean-all: ## Remove everything including images
 	docker-compose down -v --remove-orphans --rmi all
 	docker system prune -af
 
+# Testing commands
+test: ## Run all tests
+	docker-compose exec api pytest tests/ -v
+
+test-unit: ## Run unit tests only
+	docker-compose exec api pytest tests/unit/ -v
+
+test-integration: ## Run integration tests only
+	docker-compose exec api pytest tests/api/ -v
+
+test-rls: ## Run RLS smoke tests to verify tenant isolation
+	docker-compose exec api pytest tests/security/test_rls_smoke.py -v
+
+test-security: ## Run all security tests
+	docker-compose exec api pytest tests/security/ -v
+
+test-demo-protection: ## Test demo credential protection
+	docker-compose exec api pytest tests/security/test_demo_credential_protection.py -v
+
 # Development helpers
 shell-api: ## Open shell in API container
 	docker-compose exec api bash

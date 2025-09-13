@@ -9,6 +9,7 @@ services:
     environment:
       - DEBUG=true
       - RELOAD=true
+      - ENABLE_DEMO_DATA=true
     volumes:
       - ./services/api:/app:cached
       - /app/__pycache__

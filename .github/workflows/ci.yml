@@ -173,6 +173,18 @@ jobs:
             --cov-report=xml --cov-report=term \
             --junit-xml=pytest-integration-results.xml \
             -v
+      - name: Run RLS smoke tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          python -m pytest tests/security/test_rls_smoke.py \
+            --cov=services/api \
+            --cov-report=xml --cov-report=term \
+            --junit-xml=pytest-rls-results.xml \
+            -v
       - name: Upload test results
         uses: actions/upload-artifact@v3
         if: always()
@@ -180,6 +192,7 @@ jobs:
           name: integration-test-results
           path: |
             pytest-integration-results.xml
+            pytest-rls-results.xml
             coverage.xml
 
   test-e2e:
