@@ -55,7 +55,8 @@ git clone https://github.com/Realm-101/Kiro-Ghostworks.git && cd Kiro-Ghostworks
 
 </details>
 
-### Demo Accounts
+<details>
+<summary>🔑 Demo Accounts (Development Only)</summary>
 
 > **⚠️ SECURITY WARNING: DEMO CREDENTIALS ONLY**
 > 
@@ -77,6 +78,8 @@ docker-compose --profile dev up -d
 # Production deployments exclude demo data entirely
 docker-compose -f docker-compose.prod.yml up -d
 ```
+
+</details>
 
 ## 🏗️ Architecture
 
