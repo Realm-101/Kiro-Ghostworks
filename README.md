@@ -4,44 +4,56 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
 
 ## 🚀 Quick Start
 
-### Prerequisites
+**Prerequisites**: Docker and Docker Compose
 
-- Docker and Docker Compose
-- Git
-- Node.js 18+ (for local development)
-- Python 3.11+ (for local development)
+### One-Liner Launch
+```bash
+git clone <repository-url> && cd ghostworks && make dev-up
+```
 
-### Launch the Platform
+**That's it!** The platform will be ready at:
+- **Web App**: http://localhost:3000 (login: `owner@acme.com` / `demo123`)
+- **API Docs**: http://localhost:8000/docs  
+- **Grafana**: http://localhost:3001 (`admin`/`admin`)
+- **Prometheus**: http://localhost:9090
 
-1. **Clone the repository**
+### What `make dev-up` Does
+1. Copies `.env.example` to `.env` with sensible defaults
+2. Starts all services with Docker Compose
+3. Initializes database with migrations
+4. Seeds demo data automatically
+5. Waits for services to be healthy
+6. Shows you the URLs to access
+
+<details>
+<summary>📋 Manual Setup (if you prefer step-by-step)</summary>
+
+### Manual Launch Steps
+
+1. **Clone and setup**
    ```bash
    git clone <repository-url>
    cd ghostworks
-   ```
-
-2. **Set up environment variables**
-   ```bash
    cp .env.example .env
-   # Edit .env with your configuration
    ```
 
-3. **Start all services with demo data**
+2. **Start services**
    ```bash
    docker-compose --profile dev up -d
    ```
 
-4. **Initialize the database**
+3. **Initialize database**
    ```bash
    docker-compose exec api python -m alembic upgrade head
    ```
 
-   Demo data will be automatically seeded when using the `dev` profile.
-
-6. **Access the platform**
+4. **Access the platform**
    - **Web Application**: http://localhost:3000
    - **API Documentation**: http://localhost:8000/docs
    - **Grafana Dashboards**: http://localhost:3001 (admin/admin)
    - **Prometheus Metrics**: http://localhost:9090
+
+</details>
 
 ### Demo Accounts
 
