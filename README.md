@@ -8,7 +8,7 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
 
 ### One-Liner Launch
 ```bash
-git clone <repository-url> && cd ghostworks && make dev-up
+git clone https://github.com/Realm-101/Kiro-Ghostworks.git && cd Kiro-Ghostworks && make dev-up
 ```
 
 **That's it!** The platform will be ready at:
@@ -32,8 +32,8 @@ git clone <repository-url> && cd ghostworks && make dev-up
 
 1. **Clone and setup**
    ```bash
-   git clone <repository-url>
-   cd ghostworks
+   git clone https://github.com/Realm-101/Kiro-Ghostworks.git
+   cd Kiro-Ghostworks
    cp .env.example .env
    ```
 
@@ -276,14 +276,13 @@ Key environment variables:
 
 ## 📚 Documentation
 
-- **API Documentation**: Available at `/docs` when running ([OpenAPI Spec](docs/openapi.json))
-- **Architecture Decisions**: See `docs/adr/`
-- **Operational Runbooks**: See `docs/runbooks/`
-- **Demo Script**: See `docs/DEMO_SCRIPT.md`
-- **Screenshots**: See `docs/screenshots/`
-- **Security Policies**: See `.kiro/steering/security-policies.md`
-- **Security Headers & CSP**: See `services/api/SECURITY_HEADERS.md`
-- **Testing Standards**: See `.kiro/steering/testing-standards.md`
+- **[Getting Started Guide](docs/getting-started.md)** - Detailed setup and development guide
+- **[Demo Script](docs/DEMO_SCRIPT.md)** - Comprehensive presentation guide
+- **[API Documentation](http://localhost:8000/docs)** - Interactive OpenAPI docs (when running)
+- **[Architecture Decisions](docs/adr/)** - Technical decision records
+- **[CI/CD Pipeline](docs/ci-cd-pipeline.md)** - Complete pipeline documentation
+- **[Operational Runbooks](docs/runbooks/)** - Production operations guide
+- **[Security Documentation](docs/security/)** - Security policies and implementation
 
 ## 🎪 Demo & Tour
 
