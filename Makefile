@@ -1,11 +1,57 @@
 # Ghostworks Docker Compose Management
-.PHONY: help build up down logs clean restart status health
+.PHONY: help build up down logs clean restart status health dev-up
 
 # Default target
 help: ## Show this help message
 	@echo "Ghostworks Docker Compose Commands:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# Quick start command
+dev-up: ## 🚀 One-liner setup: clone, configure, start, and initialize everything
+	@echo "🚀 Starting Ghostworks development environment..."
+	@echo ""
+	
+	# Setup environment
+	@if [ ! -f .env ]; then \
+		echo "📝 Creating .env from template..."; \
+		cp .env.example .env; \
+	else \
+		echo "✅ .env already exists"; \
+	fi
+	
+	# Start services
+	@echo "🐳 Starting Docker services..."
+	docker-compose --profile dev up -d
+	
+	# Wait for services to be ready
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 10
+	
+	# Initialize database
+	@echo "🗄️ Initializing database..."
+	docker-compose exec -T api python -m alembic upgrade head
+	
+	# Seed demo data
+	@echo "🌱 Seeding demo data..."
+	docker-compose exec -T api python scripts/seed_demo_data.py
+	
+	# Show status
+	@echo ""
+	@echo "✅ Ghostworks is ready!"
+	@echo ""
+	@echo "🌐 Access URLs:"
+	@echo "  Web App:    http://localhost:3000"
+	@echo "  API Docs:   http://localhost:8000/docs"
+	@echo "  Grafana:    http://localhost:3001 (admin/admin)"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo ""
+	@echo "🔑 Demo Login: owner@acme.com / demo123"
+	@echo ""
+	@echo "📚 Next steps:"
+	@echo "  - Visit http://localhost:3000/tour for interactive demo"
+	@echo "  - See docs/DEMO_SCRIPT.md for presentation guide"
+	@echo "  - Run 'make help' for more commands"
 
 # Development commands
 build: ## Build all services
@@ -129,6 +175,10 @@ test-security: ## Run all security tests
 
 test-demo-protection: ## Test demo credential protection
 	docker-compose exec api pytest tests/security/test_demo_credential_protection.py -v
+
+# Demo validation
+validate-demo-assets: ## Validate all demo screenshots and assets are present
+	python scripts/validate_demo_assets.py
 
 # Development helpers
 shell-api: ## Open shell in API container

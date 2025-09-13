@@ -10,7 +10,16 @@ This guide provides a comprehensive script for demonstrating the Ghostworks SaaS
 
 ## 🚀 Pre-Demo Setup (5 minutes before)
 
-### 1. Environment Check
+### 1. Demo Asset Validation (CRITICAL)
+```bash
+# Validate all required screenshots are present
+make validate-demo-assets
+
+# This MUST pass before proceeding with demo
+# If it fails, you'll get specific instructions on what to capture
+```
+
+### 2. Environment Check
 ```bash
 # Ensure all services are running
 docker-compose ps
@@ -20,7 +29,7 @@ curl http://localhost:8000/api/v1/health
 curl http://localhost:3000/api/health
 ```
 
-### 2. Browser Tabs Setup
+### 3. Browser Tabs Setup
 Open these tabs in order:
 1. **Main App**: http://localhost:3000
 2. **API Docs**: http://localhost:8000/docs
@@ -28,11 +37,20 @@ Open these tabs in order:
 4. **Prometheus**: http://localhost:9090
 5. **Tour Page**: http://localhost:3000/tour
 
-### 3. Demo Data Verification
+### 4. Demo Data Verification
 ```bash
 # Ensure demo data is loaded
 docker-compose exec api python scripts/validate_demo_data.py
 ```
+
+### 🚨 Pre-Flight Checklist
+- [ ] `make validate-demo-assets` passes ✅
+- [ ] All services healthy ✅
+- [ ] Browser tabs open ✅
+- [ ] Demo data loaded ✅
+- [ ] Screenshots ready for reference ✅
+
+**If any item fails, DO NOT proceed with the demo until fixed.**
 
 ## 📋 Demo Script
 
@@ -58,10 +76,11 @@ docker-compose exec api python scripts/validate_demo_data.py
 1. **Login** with `owner@acme.com` / `demo123`
    - Point out the clean, responsive UI
    - Mention JWT-based authentication with refresh tokens
+   - *Reference: `auth-login-form.png`*
 
 2. **Show Workspace Switching**
-   - Click workspace dropdown
-   - Switch to different workspace
+   - Click workspace dropdown (*Reference: `auth-workspace-selector.png`*)
+   - Switch to different workspace (*Reference: `auth-workspace-switching.png`*)
    - Explain tenant isolation at database level
 
 **Talking Points:**
@@ -77,21 +96,21 @@ docker-compose exec api python scripts/validate_demo_data.py
 
 **Demo Steps:**
 1. **Browse Artifacts**
-   - Show existing artifacts from demo data
+   - Show existing artifacts from demo data (*Reference: `artifacts-list-view.png`*)
    - Point out pagination and clean UI
 
 2. **Search & Filter**
-   - Use search bar: "marketing"
+   - Use search bar: "marketing" (*Reference: `artifacts-search-filter.png`*)
    - Filter by tags
    - Show real-time search with debouncing
 
 3. **Create New Artifact**
-   - Click "Create Artifact"
+   - Click "Create Artifact" (*Reference: `artifacts-create-modal.png`*)
    - Fill in: Name: "Demo Widget", Tags: ["demo", "widget"]
    - Show optimistic UI updates
 
 4. **Edit Artifact**
-   - Click edit on newly created artifact
+   - Click edit on newly created artifact (*Reference: `artifacts-edit-modal.png`*)
    - Show modal with form validation
    - Update and save
 
@@ -109,10 +128,10 @@ docker-compose exec api python scripts/validate_demo_data.py
 > "Now here's where it gets interesting. This platform has comprehensive observability built in from day one."
 
 **Demo Steps:**
-1. **Show Live Metrics**
-   - Point out real-time counters
+1. **Show Live Metrics** (*Reference: `tour-landing-page.png`*)
+   - Point out real-time counters (*Reference: `tour-metrics-dashboard.png`*)
    - Explain the metrics being displayed
-   - Refresh to show updates
+   - Refresh to show updates (*Reference: `tour-telemetry-demo.png`*)
 
 2. **Explain the Stack**
    - OpenTelemetry for distributed tracing
@@ -131,17 +150,17 @@ docker-compose exec api python scripts/validate_demo_data.py
 > "Let's look at the actual monitoring dashboards that would be used in production."
 
 **Demo Steps:**
-1. **API Golden Signals Dashboard**
+1. **API Golden Signals Dashboard** (*Reference: `grafana-api-golden-signals.png`*)
    - Show latency percentiles
    - Point out error rates
    - Explain throughput metrics
 
-2. **Business Metrics Dashboard**
+2. **Business Metrics Dashboard** (*Reference: `grafana-business-metrics.png`*)
    - Show user activity
    - Artifact creation trends
    - Workspace utilization
 
-3. **System Overview**
+3. **System Overview** (*Reference: `grafana-system-overview.png`*)
    - Database performance
    - Memory and CPU usage
    - Service health status
@@ -160,7 +179,7 @@ docker-compose exec api python scripts/validate_demo_data.py
 > "Here's what makes this truly AI-native. The platform integrates with Model Context Protocol servers for autonomous development."
 
 **Demo Steps:**
-1. **Show MCP Configuration**
+1. **Show MCP Configuration** (*Reference: `mcp-configuration.png`*)
    - Open `.kiro/settings/mcp.json`
    - Explain GitHub and AWS docs integration
    - Point out auto-approval settings
@@ -182,12 +201,12 @@ docker-compose exec api python scripts/validate_demo_data.py
 > "The platform also has autonomous agent hooks that can improve itself."
 
 **Demo Steps:**
-1. **Asset Gardener Demo**
+1. **Asset Gardener Demo** (*Reference: `tour-asset-gardener.png`*)
    - Click "Optimize Images" button
    - Show the processing happening
    - Explain what it's doing behind the scenes
 
-2. **Release Notes Automation**
+2. **Release Notes Automation** (*Reference: `agent-hooks-interface.png`*)
    - Explain the release notes hook
    - Show generated CHANGELOG.md
    - Mention conventional commit parsing
@@ -206,9 +225,9 @@ docker-compose exec api python scripts/validate_demo_data.py
 > "Let's look at the API that powers all of this."
 
 **Demo Steps:**
-1. **Show OpenAPI Docs**
+1. **Show OpenAPI Docs** (*Reference: `api-docs-swagger-ui.png`*)
    - Browse available endpoints
-   - Show authentication requirements
+   - Show authentication requirements (*Reference: `api-docs-authentication.png`*)
    - Point out comprehensive documentation
 
 2. **Test an Endpoint**

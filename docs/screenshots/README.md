@@ -136,47 +136,100 @@ Examples:
 
 ## 📊 Screenshot Inventory
 
-### Current Screenshots (To be captured)
+### 🎯 Demo-Critical Screenshots (MUST HAVE)
 
-#### Authentication & User Management
-- [ ] Login form with validation states
+These screenshots are **required** for the demo script and presentation. The demo script will validate their presence before proceeding.
+
+#### Authentication Flow (Demo Section 1.1) 
+- [ ] **CRITICAL** `auth-login-form.png` - Login form with demo credentials visible
+- [ ] **CRITICAL** `auth-workspace-selector.png` - Workspace dropdown showing Acme Corp/Umbrella Inc
+- [ ] **CRITICAL** `auth-workspace-switching.png` - Before/after workspace switch showing data isolation
+
+#### Artifact Management (Demo Section 1.2)
+- [ ] **CRITICAL** `artifacts-list-view.png` - Main listing with demo artifacts from seeded data
+- [ ] **CRITICAL** `artifacts-search-filter.png` - Search results for "marketing" query
+- [ ] **CRITICAL** `artifacts-create-modal.png` - Create modal with "Demo Widget" example
+- [ ] **CRITICAL** `artifacts-edit-modal.png` - Edit modal showing tag management
+
+#### Live Metrics Dashboard (Demo Section 2.1)
+- [ ] **CRITICAL** `tour-landing-page.png` - Interactive tour page at /tour
+- [ ] **CRITICAL** `tour-metrics-dashboard.png` - Live metrics with real numbers
+- [ ] **CRITICAL** `tour-telemetry-demo.png` - Telemetry visualization in action
+
+#### Grafana Dashboards (Demo Section 2.2)
+- [ ] **CRITICAL** `grafana-api-golden-signals.png` - API performance with realistic data
+- [ ] **CRITICAL** `grafana-business-metrics.png` - Business KPIs showing activity
+- [ ] **CRITICAL** `grafana-system-overview.png` - System health with green status
+
+#### AI-Native Features (Demo Section 3)
+- [ ] **CRITICAL** `tour-asset-gardener.png` - Asset Gardener demo in progress
+- [ ] **CRITICAL** `mcp-configuration.png` - MCP settings showing GitHub/AWS integration
+- [ ] **CRITICAL** `agent-hooks-interface.png` - Hook management interface
+
+#### API Documentation (Demo Section 4.1)
+- [ ] **CRITICAL** `api-docs-swagger-ui.png` - OpenAPI docs homepage
+- [ ] **CRITICAL** `api-docs-authentication.png` - Auth endpoints expanded
+
+### 📋 Supporting Screenshots (NICE TO HAVE)
+
+#### Extended Authentication & User Management
 - [ ] Registration form with password requirements
-- [ ] Workspace selection interface
-- [ ] User profile and settings
+- [ ] User profile and settings page
+- [ ] Password reset flow
+- [ ] Email verification interface
 
-#### Artifact Management
-- [ ] Artifact listing with pagination
-- [ ] Search and filtering interface
-- [ ] Create artifact modal
-- [ ] Edit artifact with tag management
-- [ ] Artifact detail view
+#### Extended Artifact Management  
+- [ ] Artifact detail view with metadata
+- [ ] Tag autocomplete in action
+- [ ] Bulk operations interface
+- [ ] Export/import functionality
 
-#### Monitoring & Observability
-- [ ] Grafana API golden signals dashboard
-- [ ] Business metrics dashboard
-- [ ] System overview dashboard
+#### Extended Monitoring & Observability
 - [ ] Prometheus targets and alerts
 - [ ] Log aggregation interface
-
-#### Tour & Demo Features
-- [ ] Interactive tour landing page
-- [ ] Live metrics demonstration
-- [ ] Asset Gardener in action
-- [ ] Release notes generation
-- [ ] MCP server integration
+- [ ] Alert notification settings
+- [ ] Performance trending over time
 
 #### Development & Operations
-- [ ] API documentation (Swagger UI)
 - [ ] CI/CD pipeline status
-- [ ] Test results and coverage
+- [ ] Test results and coverage reports
 - [ ] Security scan results
-- [ ] Deployment status
+- [ ] Deployment status dashboard
 
-### Mobile Screenshots
+#### Mobile Screenshots
 - [ ] Mobile login interface
 - [ ] Mobile artifact listing
 - [ ] Mobile navigation menu
 - [ ] Mobile dashboard view
+
+### 🚨 Demo Script Integration
+
+The demo script (`docs/DEMO_SCRIPT.md`) includes a pre-flight check that validates all **CRITICAL** screenshots exist:
+
+```bash
+# Pre-demo validation
+make validate-demo-assets
+
+# This checks for:
+# - All CRITICAL screenshots present
+# - Proper naming convention
+# - Minimum resolution requirements
+# - File size optimization
+```
+
+**Demo sections that depend on screenshots:**
+- **Section 1.1**: Requires `auth-*` screenshots
+- **Section 1.2**: Requires `artifacts-*` screenshots  
+- **Section 2.1**: Requires `tour-*` screenshots
+- **Section 2.2**: Requires `grafana-*` screenshots
+- **Section 3**: Requires AI feature screenshots
+- **Section 4.1**: Requires `api-docs-*` screenshots
+
+### 📸 Screenshot Capture Priority
+
+**Phase 1 (Demo Blockers)**: Capture all **CRITICAL** screenshots first
+**Phase 2 (Enhancement)**: Add supporting screenshots for documentation
+**Phase 3 (Polish)**: Mobile views and edge cases
 
 ## 🎯 Usage in Documentation
 
