@@ -16,7 +16,23 @@
     "manual": {
       "enabled": true,
       "buttonText": "🌱 Optimize Images",
-      "description": "Manually trigger image optimization for all images in the project"
+      "description": "Manually trigger image optimization for all images in the project",
+      "options": [
+        {
+          "name": "dryRun",
+          "label": "Dry Run (Preview Only)",
+          "type": "boolean",
+          "default": false,
+          "description": "Preview optimization without modifying files"
+        },
+        {
+          "name": "force",
+          "label": "Force Re-optimization",
+          "type": "boolean", 
+          "default": false,
+          "description": "Re-optimize all images even if unchanged"
+        }
+      ]
     }
   },
   "configuration": {
@@ -42,7 +58,24 @@
     },
     "outputDirectory": "apps/web/public/optimized",
     "importMapPath": "apps/web/src/lib/image-imports.ts",
-    "preserveOriginal": true
+    "preserveOriginal": true,
+    "specialHandling": {
+      "animatedGifs": {
+        "preserveAnimation": true,
+        "generateStaticPreview": true,
+        "description": "Animated GIFs are preserved with their animation intact, plus static preview variants are generated from the first frame"
+      },
+      "svgWithText": {
+        "preserveTextFormatting": true,
+        "optimizeWhitespace": true,
+        "description": "SVG files with text content have their text formatting preserved while removing unnecessary whitespace and comments"
+      }
+    },
+    "idempotency": {
+      "enabled": true,
+      "hashingAlgorithm": "sha256",
+      "description": "Files are hashed to detect changes. Optimization is skipped if the source file hasn't changed and output files exist (no-op if unchanged)"
+    }
   },
   "execution": {
     "command": "node",

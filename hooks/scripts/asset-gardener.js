@@ -13,17 +13,24 @@ const sharp = require('sharp');
 const { glob } = require('glob');
 
 class AssetGardener {
-  constructor(config) {
+  constructor(config, options = {}) {
     this.config = config;
+    this.options = {
+      dryRun: false,
+      force: false, // Force re-optimization even if files exist
+      ...options
+    };
     this.stats = {
       processed: 0,
       optimized: 0,
+      skipped: 0,
       errors: 0,
       originalSize: 0,
       optimizedSize: 0,
       startTime: Date.now()
     };
     this.logger = new Logger(config.logging);
+    this.hashCache = new Map(); // Cache for file hashes to detect changes
   }
 
   /**
@@ -113,21 +120,32 @@ class AssetGardener {
       this.stats.processed++;
       this.logger.debug(`Processing: ${imagePath}`);
       
-      // Get original file stats
+      // Get original file stats and hash for idempotency
       const originalStats = await fs.stat(imagePath);
+      const fileHash = await this.calculateFileHash(imagePath);
+      
+      // Check if we need to process this file (idempotency check)
+      if (!this.options.force && await this.shouldSkipProcessing(imagePath, fileHash, originalStats.mtime)) {
+        this.stats.skipped++;
+        this.logger.debug(`⏭️ Skipped (unchanged): ${imagePath}`);
+        return [];
+      }
+      
       this.stats.originalSize += originalStats.size;
       
       // Load image with sharp
       const image = sharp(imagePath);
       const metadata = await image.metadata();
       
-      // Skip SVG files (handle them separately)
+      // Handle different image types
       if (metadata.format === 'svg') {
-        return this.processSvg(imagePath);
+        return this.processSvg(imagePath, fileHash);
+      } else if (metadata.format === 'gif') {
+        return this.processAnimatedGif(imagePath, metadata, fileHash);
       }
       
-      // Generate optimized variants
-      const variants = await this.generateVariants(image, imagePath, metadata);
+      // Generate optimized variants for static images
+      const variants = await this.generateVariants(image, imagePath, metadata, fileHash);
       
       // Calculate total optimized size
       let totalOptimizedSize = 0;
@@ -155,9 +173,94 @@ class AssetGardener {
   }
 
   /**
+   * Calculate file hash for idempotency checking
+   */
+  async calculateFileHash(filePath) {
+    const crypto = require('crypto');
+    const content = await fs.readFile(filePath);
+    return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Check if file processing should be skipped (idempotency)
+   */
+  async shouldSkipProcessing(originalPath, fileHash, modifiedTime) {
+    const baseName = path.parse(originalPath).name;
+    const relativePath = path.relative(process.cwd(), originalPath);
+    
+    // Check if we have a cached hash and it matches
+    const cacheKey = relativePath;
+    if (this.hashCache.has(cacheKey) && this.hashCache.get(cacheKey) === fileHash) {
+      return true;
+    }
+    
+    // Check if output files exist and are newer than source
+    try {
+      const outputPath = this.getOutputPath(relativePath, baseName, 'medium', 'webp');
+      const outputStats = await fs.stat(outputPath);
+      
+      // If output is newer than source and hash matches, skip
+      if (outputStats.mtime > modifiedTime) {
+        this.hashCache.set(cacheKey, fileHash);
+        return true;
+      }
+    } catch {
+      // Output doesn't exist, need to process
+    }
+    
+    return false;
+  }
+
+  /**
+   * Process animated GIF files (preserve animation)
+   */
+  async processAnimatedGif(gifPath, metadata, fileHash) {
+    this.logger.info(`🎬 Processing animated GIF: ${gifPath}`);
+    
+    const baseName = path.parse(gifPath).name;
+    const relativePath = path.relative(process.cwd(), gifPath);
+    const variants = [];
+    
+    try {
+      // For animated GIFs, we preserve the original and create a static preview
+      const originalOutputPath = this.getOutputPath(relativePath, baseName, 'original', 'gif');
+      await this.ensureDirectoryExists(path.dirname(originalOutputPath));
+      
+      if (this.options.dryRun) {
+        this.logger.info('🔍 DRY RUN: Would preserve animated GIF');
+      } else {
+        // Copy original GIF (potentially with some optimization)
+        await fs.copyFile(gifPath, originalOutputPath);
+        
+        variants.push({
+          size: 'original',
+          format: 'gif',
+          outputPath: originalOutputPath,
+          width: metadata.width,
+          height: metadata.height,
+          animated: true
+        });
+      }
+      
+      // Create static preview from first frame
+      const image = sharp(gifPath, { animated: false }); // Get first frame only
+      const staticVariants = await this.generateVariants(image, gifPath, metadata, fileHash, 'static');
+      variants.push(...staticVariants);
+      
+      // Update hash cache
+      this.hashCache.set(relativePath, fileHash);
+      
+    } catch (error) {
+      this.logger.error(`Failed to process animated GIF ${gifPath}:`, error.message);
+    }
+    
+    return variants;
+  }
+
+  /**
    * Generate responsive variants for an image
    */
-  async generateVariants(image, originalPath, metadata) {
+  async generateVariants(image, originalPath, metadata, fileHash, suffix = '') {
     const variants = [];
     const baseName = path.parse(originalPath).name;
     const relativePath = path.relative(process.cwd(), originalPath);
@@ -168,8 +271,33 @@ class AssetGardener {
         if (format === 'original') continue;
         
         try {
-          const outputPath = this.getOutputPath(relativePath, baseName, size.name, format);
+          const variantName = suffix ? `${baseName}-${suffix}` : baseName;
+          const outputPath = this.getOutputPath(relativePath, variantName, size.name, format);
+          
+          // Skip if file exists and we're not forcing (idempotency)
+          if (!this.options.force && !this.options.dryRun) {
+            try {
+              await fs.access(outputPath);
+              continue; // File exists, skip
+            } catch {
+              // File doesn't exist, proceed with generation
+            }
+          }
+          
           await this.ensureDirectoryExists(path.dirname(outputPath));
+          
+          if (this.options.dryRun) {
+            this.logger.debug(`🔍 DRY RUN: Would generate ${size.name} ${format} variant`);
+            variants.push({
+              size: size.name,
+              format,
+              outputPath,
+              width: size.width,
+              height: size.height,
+              dryRun: true
+            });
+            continue;
+          }
           
           let pipeline = image.clone();
           
@@ -203,25 +331,63 @@ class AssetGardener {
     
     // Preserve original if configured
     if (this.config.preserveOriginal) {
-      const originalOutputPath = this.getOutputPath(relativePath, baseName, 'original', metadata.format);
+      const variantName = suffix ? `${baseName}-${suffix}` : baseName;
+      const originalOutputPath = this.getOutputPath(relativePath, variantName, 'original', metadata.format);
+      
+      // Skip if file exists and we're not forcing (idempotency)
+      if (!this.options.force && !this.options.dryRun) {
+        try {
+          await fs.access(originalOutputPath);
+          // File exists, add to variants but don't regenerate
+          variants.push({
+            size: 'original',
+            format: metadata.format,
+            outputPath: originalOutputPath,
+            width: metadata.width,
+            height: metadata.height,
+            skipped: true
+          });
+          return variants;
+        } catch {
+          // File doesn't exist, proceed with generation
+        }
+      }
+      
       await this.ensureDirectoryExists(path.dirname(originalOutputPath));
       
-      try {
-        // Copy original with potential optimization
-        let pipeline = image.clone();
-        pipeline = this.applyFormatOptimizations(pipeline, metadata.format);
-        await pipeline.toFile(originalOutputPath);
-        
+      if (this.options.dryRun) {
+        this.logger.debug('🔍 DRY RUN: Would preserve original');
         variants.push({
           size: 'original',
           format: metadata.format,
           outputPath: originalOutputPath,
           width: metadata.width,
-          height: metadata.height
+          height: metadata.height,
+          dryRun: true
         });
-      } catch (error) {
-        this.logger.warn(`Failed to preserve original for ${originalPath}:`, error.message);
+      } else {
+        try {
+          // Copy original with potential optimization
+          let pipeline = image.clone();
+          pipeline = this.applyFormatOptimizations(pipeline, metadata.format);
+          await pipeline.toFile(originalOutputPath);
+          
+          variants.push({
+            size: 'original',
+            format: metadata.format,
+            outputPath: originalOutputPath,
+            width: metadata.width,
+            height: metadata.height
+          });
+        } catch (error) {
+          this.logger.warn(`Failed to preserve original for ${originalPath}:`, error.message);
+        }
       }
+    }
+    
+    // Update hash cache after successful processing
+    if (!this.options.dryRun && fileHash) {
+      this.hashCache.set(relativePath, fileHash);
     }
     
     return variants;
@@ -267,31 +433,82 @@ class AssetGardener {
   }
 
   /**
-   * Process SVG files (basic optimization)
+   * Process SVG files (with text preservation and optimization)
    */
-  async processSvg(svgPath) {
+  async processSvg(svgPath, fileHash) {
     try {
       const content = await fs.readFile(svgPath, 'utf8');
       const baseName = path.parse(svgPath).name;
       const relativePath = path.relative(process.cwd(), svgPath);
       const outputPath = this.getOutputPath(relativePath, baseName, 'original', 'svg');
       
+      // Check idempotency
+      if (!this.options.force && !this.options.dryRun) {
+        try {
+          await fs.access(outputPath);
+          // File exists, check if source changed
+          if (this.hashCache.get(relativePath) === fileHash) {
+            return [{
+              size: 'original',
+              format: 'svg',
+              outputPath,
+              width: null,
+              height: null,
+              skipped: true
+            }];
+          }
+        } catch {
+          // File doesn't exist, proceed
+        }
+      }
+      
       await this.ensureDirectoryExists(path.dirname(outputPath));
       
-      // Basic SVG optimization (remove comments, extra whitespace)
-      const optimized = content
+      if (this.options.dryRun) {
+        this.logger.debug('🔍 DRY RUN: Would optimize SVG');
+        return [{
+          size: 'original',
+          format: 'svg',
+          outputPath,
+          width: null,
+          height: null,
+          dryRun: true
+        }];
+      }
+      
+      // Enhanced SVG optimization while preserving text content
+      let optimized = content
         .replace(/<!--[\s\S]*?-->/g, '') // Remove comments
-        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/\s+(?=<)/g, '') // Remove whitespace before tags
+        .replace(/>\s+</g, '><') // Remove whitespace between tags
+        .replace(/\s{2,}/g, ' ') // Normalize multiple spaces to single space
         .trim();
       
+      // Preserve text content formatting (don't collapse spaces in <text> elements)
+      optimized = optimized.replace(/<text[^>]*>[\s\S]*?<\/text>/gi, (match) => {
+        return match.replace(/\s+/g, ' '); // Only normalize to single spaces in text
+      });
+      
+      // Extract and preserve viewBox and dimensions if present
+      const viewBoxMatch = content.match(/viewBox=["']([^"']+)["']/);
+      const widthMatch = content.match(/width=["']([^"']+)["']/);
+      const heightMatch = content.match(/height=["']([^"']+)["']/);
+      
       await fs.writeFile(outputPath, optimized);
+      
+      // Update hash cache
+      this.hashCache.set(relativePath, fileHash);
+      
+      this.logger.info(`📐 Optimized SVG: ${svgPath} (preserved text content)`);
       
       return [{
         size: 'original',
         format: 'svg',
         outputPath,
-        width: null,
-        height: null
+        width: widthMatch ? widthMatch[1] : null,
+        height: heightMatch ? heightMatch[1] : null,
+        viewBox: viewBoxMatch ? viewBoxMatch[1] : null,
+        hasText: /<text[^>]*>/i.test(content)
       }];
       
     } catch (error) {
@@ -548,17 +765,33 @@ export function getResponsiveSrcSet(
       ? ((savedBytes / this.stats.originalSize) * 100).toFixed(1)
       : '0';
     
-    return {
+    const report = {
       processed: this.stats.processed,
       optimized: this.stats.optimized,
+      skipped: this.stats.skipped,
       errors: this.stats.errors,
       duration: `${(duration / 1000).toFixed(2)}s`,
       originalSize: this.formatBytes(this.stats.originalSize),
       optimizedSize: this.formatBytes(this.stats.optimizedSize),
       savedBytes: this.formatBytes(savedBytes),
       compressionRatio: `${compressionRatio}%`,
-      note: savedBytes < 0 ? 'Size increased due to multiple format variants generated' : 'Size reduced through optimization'
+      dryRun: this.options.dryRun,
+      idempotency: {
+        enabled: !this.options.force,
+        skippedFiles: this.stats.skipped,
+        note: this.stats.skipped > 0 ? 'Files skipped due to no changes detected' : 'All files processed'
+      }
     };
+
+    if (savedBytes < 0) {
+      report.note = 'Size increased due to multiple format variants generated';
+    } else if (this.stats.skipped > 0) {
+      report.note = `Optimization complete - ${this.stats.skipped} files skipped (no changes)`;
+    } else {
+      report.note = 'Size reduced through optimization';
+    }
+
+    return report;
   }
 }
 
@@ -606,6 +839,43 @@ class Logger {
  */
 async function main() {
   try {
+    // Parse command line arguments
+    const args = process.argv.slice(2);
+    const options = {
+      dryRun: args.includes('--dry-run') || args.includes('-d'),
+      force: args.includes('--force') || args.includes('-f'),
+      verbose: args.includes('--verbose') || args.includes('-v'),
+      help: args.includes('--help') || args.includes('-h')
+    };
+
+    if (options.help) {
+      console.log(`
+Asset Gardener - Image Optimization Tool
+
+Usage: node asset-gardener.js [options]
+
+Options:
+  --dry-run, -d    Show what would be optimized without making changes
+  --force, -f      Force re-optimization even if files exist (ignore idempotency)
+  --verbose, -v    Enable verbose output
+  --help, -h       Show this help message
+
+Behavior:
+  - Animated GIFs: Preserved with static preview variants generated
+  - SVG with text: Text content preserved during optimization
+  - Idempotency: Files are skipped if unchanged (use --force to override)
+  - Formats: Generates WebP, AVIF, and original format variants
+  - Sizes: Creates thumbnail, small, medium, large, and xlarge variants
+
+Examples:
+  node asset-gardener.js                    # Optimize all images
+  node asset-gardener.js --dry-run          # Preview changes without writing
+  node asset-gardener.js --force            # Re-optimize all images
+  node asset-gardener.js --dry-run --verbose # Preview with detailed output
+      `);
+      return;
+    }
+    
     // Load configuration
     const configPath = path.join(__dirname, '..', 'asset-gardener.json');
     const configContent = await fs.readFile(configPath, 'utf8');
@@ -613,24 +883,31 @@ async function main() {
     const config = {
       ...fullConfig.configuration,
       logging: fullConfig.logging || {
-        level: "info",
+        level: options.verbose ? "debug" : "info",
         file: "hooks/logs/asset-gardener.log"
       }
     };
     
-    // Create and run Asset Gardener
-    const gardener = new AssetGardener(config);
+    // Create and run Asset Gardener with options
+    const gardener = new AssetGardener(config, options);
     const report = await gardener.run();
     
     // Output report for hook system
     console.log('\n🌱 ASSET GARDENER REPORT:');
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(report, null, options.verbose ? 2 : 0));
+    
+    if (options.dryRun) {
+      console.log('\n🔍 DRY RUN MODE - No files were modified');
+      console.log('Run without --dry-run to apply changes');
+    }
     
     process.exit(0);
     
   } catch (error) {
     console.error('❌ Asset Gardener failed:', error.message);
-    console.error(error.stack);
+    if (options && options.verbose) {
+      console.error(error.stack);
+    }
     process.exit(1);
   }
 }

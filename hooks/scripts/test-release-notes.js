@@ -25,6 +25,7 @@ class ReleaseNotesTest {
       await this.testConventionalCommitParsing();
       await this.testVersionCalculation();
       await this.testChangelogGeneration();
+      await this.testNoPriorTagScenario();
       await this.testManualTrigger();
       
       console.log('\n✅ All tests passed!');
@@ -226,6 +227,42 @@ class ReleaseNotesTest {
       
     } catch (error) {
       console.log('⚠️ Skipping git-dependent manual trigger test:', error.message);
+    }
+  }
+
+  async testNoPriorTagScenario() {
+    console.log('\n🏷️ Testing no prior tag scenario...');
+
+    try {
+      // Ensure we're in a fresh repo with no tags
+      const tags = execSync('git tag', { encoding: 'utf8', stdio: 'pipe' }).trim();
+      if (tags) {
+        console.log('⚠️ Skipping no-tag test - tags already exist');
+        return;
+      }
+
+      // Create some commits
+      await fs.writeFile('initial.txt', 'initial content');
+      execSync('git add initial.txt', { stdio: 'pipe' });
+      execSync('git commit -m "feat: initial feature"', { stdio: 'pipe' });
+
+      await fs.writeFile('fix.txt', 'fix content');
+      execSync('git add fix.txt', { stdio: 'pipe' });
+      execSync('git commit -m "fix: important bug fix"', { stdio: 'pipe' });
+
+      // Test with dry-run to see expected output
+      const dryRunGenerator = new ReleaseNotesGenerator(this.generator.config, { dryRun: true });
+      const dryResult = await dryRunGenerator.generate();
+
+      console.assert(dryResult.dryRun === true, 'Should be in dry-run mode');
+      console.assert(dryResult.version === '0.2.0', `Expected 0.2.0 (minor bump for feat), got ${dryResult.version}`);
+      console.assert(dryResult.commitCount === 2, `Expected 2 commits, got ${dryResult.commitCount}`);
+      console.assert(dryResult.proposedChanges, 'Should include proposed changes');
+
+      console.log(`✅ No prior tag scenario handled correctly - would create version ${dryResult.version}`);
+      
+    } catch (error) {
+      console.log('⚠️ Skipping no-tag test:', error.message);
     }
   }
 

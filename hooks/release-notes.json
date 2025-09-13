@@ -24,7 +24,16 @@
     "manual": {
       "enabled": true,
       "buttonText": "📝 Generate Release Notes",
-      "description": "Manually generate release notes from recent commits and update CHANGELOG.md"
+      "description": "Manually generate release notes from recent commits and update CHANGELOG.md",
+      "options": [
+        {
+          "name": "dryRun",
+          "label": "Dry Run (Preview Only)",
+          "type": "boolean",
+          "default": false,
+          "description": "Preview changes without modifying files"
+        }
+      ]
     }
   },
   "configuration": {
