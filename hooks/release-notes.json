@@ -1,0 +1,167 @@
+{
+  "name": "Release Notes Generator",
+  "description": "Automatically generates release notes and CHANGELOG.md from conventional commits with semantic versioning",
+  "version": "1.0.0",
+  "triggers": {
+    "gitCommit": {
+      "patterns": [
+        "feat:",
+        "fix:",
+        "docs:",
+        "style:",
+        "refactor:",
+        "perf:",
+        "test:",
+        "chore:",
+        "build:",
+        "ci:",
+        "revert:",
+        "BREAKING CHANGE:"
+      ],
+      "branches": ["main", "master", "develop"],
+      "debounceMs": 5000
+    },
+    "manual": {
+      "enabled": true,
+      "buttonText": "📝 Generate Release Notes",
+      "description": "Manually generate release notes from recent commits and update CHANGELOG.md"
+    }
+  },
+  "configuration": {
+    "conventionalCommits": {
+      "types": {
+        "feat": {
+          "title": "✨ Features",
+          "semver": "minor",
+          "description": "New features and functionality"
+        },
+        "fix": {
+          "title": "🐛 Bug Fixes", 
+          "semver": "patch",
+          "description": "Bug fixes and corrections"
+        },
+        "docs": {
+          "title": "📚 Documentation",
+          "semver": "patch",
+          "description": "Documentation updates"
+        },
+        "style": {
+          "title": "💄 Styling",
+          "semver": "patch",
+          "description": "Code style and formatting changes"
+        },
+        "refactor": {
+          "title": "♻️ Code Refactoring",
+          "semver": "patch",
+          "description": "Code refactoring without functionality changes"
+        },
+        "perf": {
+          "title": "⚡ Performance Improvements",
+          "semver": "patch",
+          "description": "Performance optimizations"
+        },
+        "test": {
+          "title": "🧪 Tests",
+          "semver": "patch",
+          "description": "Test additions and improvements"
+        },
+        "chore": {
+          "title": "🔧 Maintenance",
+          "semver": "patch",
+          "description": "Maintenance and housekeeping"
+        },
+        "build": {
+          "title": "📦 Build System",
+          "semver": "patch",
+          "description": "Build system and dependency changes"
+        },
+        "ci": {
+          "title": "👷 CI/CD",
+          "semver": "patch",
+          "description": "Continuous integration changes"
+        },
+        "revert": {
+          "title": "⏪ Reverts",
+          "semver": "patch",
+          "description": "Reverted changes"
+        }
+      },
+      "breakingChangeKeywords": [
+        "BREAKING CHANGE:",
+        "BREAKING CHANGES:",
+        "BREAKING:"
+      ]
+    },
+    "versioning": {
+      "strategy": "semantic",
+      "initialVersion": "0.1.0",
+      "prerelease": {
+        "enabled": false,
+        "identifier": "beta"
+      },
+      "tagPrefix": "v",
+      "tagFormat": "v{version}"
+    },
+    "changelog": {
+      "path": "CHANGELOG.md",
+      "maxEntries": 50,
+      "includeCommitLinks": true,
+      "includeCompareLinks": true,
+      "repositoryUrl": "https://github.com/ghostworks/ghostworks-saas",
+      "dateFormat": "YYYY-MM-DD",
+      "sections": {
+        "unreleased": true,
+        "groupByType": true,
+        "includeAuthors": true,
+        "includeScope": true
+      }
+    },
+    "gitIntegration": {
+      "autoTag": false,
+      "pushTags": false,
+      "createRelease": false,
+      "commitChangelog": true,
+      "commitMessage": "chore: update CHANGELOG.md for {version}"
+    }
+  },
+  "execution": {
+    "command": "node",
+    "args": ["hooks/scripts/release-notes.js"],
+    "timeout": 60000,
+    "retries": 2
+  },
+  "permissions": {
+    "filesystem": {
+      "read": [
+        ".git/**/*",
+        "package.json",
+        "CHANGELOG.md",
+        "**/*.md"
+      ],
+      "write": [
+        "CHANGELOG.md",
+        "hooks/logs/release-notes.log"
+      ]
+    },
+    "git": {
+      "read": ["log", "tag", "status", "branch"],
+      "write": ["tag", "commit"]
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": "hooks/logs/release-notes.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  },
+  "notifications": {
+    "onSuccess": {
+      "message": "✅ Release Notes: Generated {version} with {commitCount} commits",
+      "channels": ["ui", "log"]
+    },
+    "onError": {
+      "message": "❌ Release Notes: Failed to generate release notes - {error}",
+      "channels": ["ui", "log", "email"]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+# Basic requirements for CI/CD scripts
+# These are minimal dependencies for the scoring and automation scripts
+
+# No external dependencies required for the scoring script
+# It uses only Python standard library modules:
+# - json
+# - os
+# - xml.etree.ElementTree
+# - datetime
+# - glob
+# - sys
+# - pathlib
+# - typing
+
+# If additional functionality is needed in the future, add dependencies here

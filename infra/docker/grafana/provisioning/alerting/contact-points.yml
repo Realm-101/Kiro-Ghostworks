@@ -1,0 +1,87 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: default-receiver
+    receivers:
+      - uid: default-webhook
+        type: webhook
+        settings:
+          url: ${WEBHOOK_URL:-http://localhost:3000/api/alerts/webhook}
+          httpMethod: POST
+          title: 'Ghostworks Alert: {{ .GroupLabels.alertname }}'
+          message: |
+            {{ range .Alerts }}
+            **Alert:** {{ .Annotations.summary }}
+            **Description:** {{ .Annotations.description }}
+            **Severity:** {{ .Labels.severity }}
+            **Service:** {{ .Labels.service }}
+            **Status:** {{ .Status }}
+            {{ end }}
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: critical-alerts
+    receivers:
+      - uid: critical-webhook
+        type: webhook
+        settings:
+          url: ${CRITICAL_WEBHOOK_URL:-http://localhost:3000/api/alerts/critical}
+          httpMethod: POST
+          title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+          message: |
+            **CRITICAL ALERT TRIGGERED**
+            
+            {{ range .Alerts }}
+            **Alert:** {{ .Annotations.summary }}
+            **Description:** {{ .Annotations.description }}
+            **Severity:** {{ .Labels.severity }}
+            **Service:** {{ .Labels.service }}
+            **Team:** {{ .Labels.team }}
+            **Status:** {{ .Status }}
+            **Runbook:** {{ .Annotations.runbook_url }}
+            {{ end }}
+        disableResolveMessage: false
+      - uid: critical-email
+        type: email
+        settings:
+          addresses: ${CRITICAL_EMAIL_ADDRESSES:-admin@ghostworks.dev}
+          subject: '🚨 CRITICAL: Ghostworks Alert - {{ .GroupLabels.alertname }}'
+          message: |
+            A critical alert has been triggered in the Ghostworks platform.
+            
+            {{ range .Alerts }}
+            Alert: {{ .Annotations.summary }}
+            Description: {{ .Annotations.description }}
+            Severity: {{ .Labels.severity }}
+            Service: {{ .Labels.service }}
+            Team: {{ .Labels.team }}
+            Status: {{ .Status }}
+            Runbook: {{ .Annotations.runbook_url }}
+            {{ end }}
+            
+            Please investigate immediately.
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: warning-alerts
+    receivers:
+      - uid: warning-webhook
+        type: webhook
+        settings:
+          url: ${WARNING_WEBHOOK_URL:-http://localhost:3000/api/alerts/warning}
+          httpMethod: POST
+          title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+          message: |
+            **WARNING ALERT TRIGGERED**
+            
+            {{ range .Alerts }}
+            **Alert:** {{ .Annotations.summary }}
+            **Description:** {{ .Annotations.description }}
+            **Severity:** {{ .Labels.severity }}
+            **Service:** {{ .Labels.service }}
+            **Team:** {{ .Labels.team }}
+            **Status:** {{ .Status }}
+            **Runbook:** {{ .Annotations.runbook_url }}
+            {{ end }}
+        disableResolveMessage: false

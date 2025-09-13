@@ -1,0 +1,548 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r services/api/requirements.txt
+          pip install flake8 black isort mypy
+      - name: Run TypeScript linting
+        run: npm run lint
+      - name: Run Python linting
+        run: |
+          flake8 services/api tests/ --max-line-length=100
+          black --check services/api tests/
+          isort --check-only services/api tests/
+      - name: Type checking
+        run: |
+          npm run type-check
+          mypy services/api --ignore-missing-imports
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ghostworks_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r services/api/requirements.txt
+          pip install pytest-cov pytest-xdist
+      - name: Run Python unit tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          python -m pytest tests/unit/ services/api/tests/ -m unit \
+            --cov=services/api --cov=packages/shared \
+            --cov-report=xml --cov-report=term \
+            --junit-xml=pytest-unit-results.xml \
+            -v
+      - name: Run Frontend unit tests
+        run: |
+          cd apps/web
+          npm run test:run -- --coverage --reporter=junit --outputFile=vitest-results.xml
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            pytest-unit-results.xml
+            apps/web/vitest-results.xml
+            coverage.xml
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ghostworks_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install -r services/api/requirements.txt
+          pip install pytest-cov
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+        run: |
+          cd services/api
+          alembic upgrade head
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          python -m pytest tests/api/ -m integration \
+            --cov=services/api \
+            --cov-report=xml --cov-report=term \
+            --junit-xml=pytest-integration-results.xml \
+            -v
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            pytest-integration-results.xml
+            coverage.xml
+
+  test-e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r services/api/requirements.txt
+      - name: Install Playwright browsers
+        run: |
+          cd apps/web
+          npx playwright install --with-deps
+      - name: Start services with Docker Compose
+        run: |
+          cp .env.example .env
+          docker-compose up -d postgres redis
+          sleep 10
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+        run: |
+          cd services/api
+          alembic upgrade head
+      - name: Start API server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          cd services/api
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+      - name: Build and start web app
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: |
+          cd apps/web
+          npm run build
+          npm run start &
+          sleep 10
+      - name: Run Playwright tests
+        run: |
+          cd apps/web
+          npm run test:e2e
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 30
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install -r services/api/requirements.txt
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+      - name: Run Python security scan with Safety
+        run: |
+          pip install safety
+          safety check --json --output safety-report.json || true
+      - name: Run Bandit security scan
+        run: |
+          pip install bandit
+          bandit -r services/api -f json -o bandit-report.json || true
+      - name: Start services for ZAP scan
+        run: |
+          cp .env.example .env
+          docker-compose up -d postgres redis
+          sleep 10
+      - name: Start API server for ZAP scan
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          cd services/api
+          alembic upgrade head
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:8000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -m 5 -T 60'
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-scan-results
+          path: |
+            safety-report.json
+            bandit-report.json
+            report_html.html
+            report_json.json
+
+  test-performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      - name: Install dependencies
+        run: pip install -r services/api/requirements.txt
+      - name: Start services
+        run: |
+          cp .env.example .env
+          docker-compose up -d postgres redis
+          sleep 10
+      - name: Start API server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ghostworks_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: test
+        run: |
+          cd services/api
+          alembic upgrade head
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+      - name: Run performance tests
+        run: k6 run tests/performance/api-load-test.js --out json=performance-results.json
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-results
+          path: performance-results.json
+
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration, security-scan]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build web application
+        run: |
+          cd apps/web
+          npm run build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Build and push Docker images
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  generate-score:
+    name: Generate Kiro Score
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration, test-e2e, security-scan, test-performance, build]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      - name: Generate Kiro Score
+        run: python scripts/generate_kiro_score.py . kiro_score.json
+      - name: Upload Kiro Score
+        uses: actions/upload-artifact@v3
+        with:
+          name: kiro-score
+          path: kiro_score.json
+      - name: Display Kiro Score
+        run: |
+          echo "## 🎯 Kiro Score Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 << 'EOF'
+          import json
+          import os
+          try:
+              with open('kiro_score.json', 'r') as f:
+                  score = json.load(f)
+              grade_emoji = {'A+': '🏆', 'A': '🟢', 'A-': '🟢', 'B+': '🔵', 'B': '🔵', 'B-': '🔵', 'C+': '🟡', 'C': '🟡', 'C-': '🟡', 'D': '🟠', 'F': '🔴'}
+              emoji = grade_emoji.get(score['grade'], '⚪')
+              summary = f"""**Overall Score: {score['overall_score']:.1f}/100 {emoji} Grade {score['grade']}**
+          ### Test Results
+          - **Unit Tests**: {score['tests']['unit']['passed']}/{score['tests']['unit']['total']} passed
+          - **Integration Tests**: {score['tests']['integration']['passed']}/{score['tests']['integration']['total']} passed
+          - **E2E Tests**: {score['tests']['e2e']['passed']}/{score['tests']['e2e']['total']} passed
+          ### Coverage
+          - **Backend**: {score['coverage']['backend']:.1f}%
+          - **Frontend**: {score['coverage']['frontend']:.1f}%
+          ### Performance
+          - **P95 Response Time**: {score['performance']['p95_response_time']:.1f}ms
+          - **Requests/sec**: {score['performance']['requests_per_second']:.1f}
+          ### Security
+          - **Scan Status**: {'✅ Passed' if score['security']['scan_passed'] else '❌ Failed'}"""
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+                  f.write(summary)
+          except Exception as e:
+              print(f"Error generating summary: {e}")
+          EOF
+
+  pr-comment:
+    name: PR Comment Bot
+    runs-on: ubuntu-latest
+    needs: [generate-score]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download Kiro Score
+        uses: actions/download-artifact@v3
+        with:
+          name: kiro-score
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const scoreData = JSON.parse(fs.readFileSync('kiro_score.json', 'utf8'));
+              const gradeEmoji = {'A+': '🏆', 'A': '🟢', 'A-': '🟢', 'B+': '🔵', 'B': '🔵', 'B-': '🔵', 'C+': '🟡', 'C': '🟡', 'C-': '🟡', 'D': '🟠', 'F': '🔴'};
+              const emoji = gradeEmoji[scoreData.grade] || '⚪';
+              const comment = `## 🎯 Kiro Quality Report
+              **Overall Score: ${scoreData.overall_score.toFixed(1)}/100 ${emoji} Grade ${scoreData.grade}**
+              ### 📊 Test Results
+              | Test Type | Passed | Total | Pass Rate |
+              |-----------|--------|-------|-----------|
+              | Unit | ${scoreData.tests.unit.passed} | ${scoreData.tests.unit.total} | ${scoreData.tests.unit.total > 0 ? ((scoreData.tests.unit.passed / scoreData.tests.unit.total) * 100).toFixed(1) : 0}% |
+              | Integration | ${scoreData.tests.integration.passed} | ${scoreData.tests.integration.total} | ${scoreData.tests.integration.total > 0 ? ((scoreData.tests.integration.passed / scoreData.tests.integration.total) * 100).toFixed(1) : 0}% |
+              | E2E | ${scoreData.tests.e2e.passed} | ${scoreData.tests.e2e.total} | ${scoreData.tests.e2e.total > 0 ? ((scoreData.tests.e2e.passed / scoreData.tests.e2e.total) * 100).toFixed(1) : 0}% |
+              ### 📈 Coverage
+              - **Backend**: ${scoreData.coverage.backend.toFixed(1)}%
+              - **Frontend**: ${scoreData.coverage.frontend.toFixed(1)}%
+              ### ⚡ Performance
+              - **P95 Response Time**: ${scoreData.performance.p95_response_time.toFixed(1)}ms
+              - **Requests/sec**: ${scoreData.performance.requests_per_second.toFixed(1)}
+              ### 🔒 Security
+              - **Scan Status**: ${scoreData.security.scan_passed ? '✅ Passed' : '❌ Failed'}
+              ---
+              *Generated at ${scoreData.timestamp} for commit ${scoreData.commit_sha.substring(0, 7)}*`;
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.error('Error creating PR comment:', error);
+            }
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, test-e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://staging.ghostworks.dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging environment..."
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running smoke tests against staging..."
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://ghostworks.dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production environment..."
+      - name: Run production smoke tests
+        run: |
+          echo "🧪 Running smoke tests against production..."

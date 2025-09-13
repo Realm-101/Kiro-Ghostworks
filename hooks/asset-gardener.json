@@ -1,0 +1,79 @@
+{
+  "name": "Asset Gardener",
+  "description": "Automatically optimizes images and generates responsive variants when image files are added or modified",
+  "version": "1.0.0",
+  "triggers": {
+    "fileWatch": {
+      "patterns": [
+        "apps/web/public/images/**/*.{jpg,jpeg,png,gif,svg,webp}",
+        "apps/web/src/assets/**/*.{jpg,jpeg,png,gif,svg,webp}",
+        "docs/images/**/*.{jpg,jpeg,png,gif,svg,webp}",
+        "**/*.{jpg,jpeg,png,gif,svg,webp}"
+      ],
+      "events": ["created", "modified"],
+      "debounceMs": 2000
+    },
+    "manual": {
+      "enabled": true,
+      "buttonText": "🌱 Optimize Images",
+      "description": "Manually trigger image optimization for all images in the project"
+    }
+  },
+  "configuration": {
+    "outputFormats": ["webp", "avif", "original"],
+    "sizes": [
+      { "name": "thumbnail", "width": 150, "height": 150 },
+      { "name": "small", "width": 400, "height": null },
+      { "name": "medium", "width": 800, "height": null },
+      { "name": "large", "width": 1200, "height": null },
+      { "name": "xlarge", "width": 1920, "height": null }
+    ],
+    "quality": {
+      "webp": 85,
+      "avif": 80,
+      "jpeg": 85,
+      "png": 95
+    },
+    "optimization": {
+      "progressive": true,
+      "mozjpeg": true,
+      "pngquant": true,
+      "svgo": true
+    },
+    "outputDirectory": "apps/web/public/optimized",
+    "importMapPath": "apps/web/src/lib/image-imports.ts",
+    "preserveOriginal": true
+  },
+  "execution": {
+    "command": "node",
+    "args": ["hooks/scripts/asset-gardener.js"],
+    "timeout": 300000,
+    "retries": 2
+  },
+  "permissions": {
+    "filesystem": {
+      "read": ["**/*.{jpg,jpeg,png,gif,svg,webp,avif}"],
+      "write": [
+        "apps/web/public/optimized/**/*",
+        "apps/web/src/lib/image-imports.ts",
+        "hooks/logs/asset-gardener.log"
+      ]
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": "hooks/logs/asset-gardener.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  },
+  "notifications": {
+    "onSuccess": {
+      "message": "✅ Asset Gardener: Optimized {count} images, saved {savedBytes} bytes",
+      "channels": ["ui", "log"]
+    },
+    "onError": {
+      "message": "❌ Asset Gardener: Failed to optimize images - {error}",
+      "channels": ["ui", "log", "email"]
+    }
+  }
+}

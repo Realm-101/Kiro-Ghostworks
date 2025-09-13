@@ -1,0 +1,42 @@
+# ZAP Baseline Scan Rules
+# Format: RULE_ID	THRESHOLD	[IGNORE_PATTERN]
+
+# Ignore false positives for development
+10021	IGNORE	# X-Content-Type-Options header missing (handled by middleware)
+10020	IGNORE	# X-Frame-Options header missing (handled by middleware)
+10016	IGNORE	# Web Browser XSS Protection Not Enabled (handled by CSP)
+
+# Medium severity rules to monitor
+10054	MEDIUM	# Cookie without SameSite Attribute
+10055	MEDIUM	# CSP Scanner
+10056	MEDIUM	# X-Debug-Token Information Leak
+
+# High severity rules that should fail the build
+40018	FAIL	# SQL Injection
+40019	FAIL	# SQL Injection - MySQL
+40020	FAIL	# SQL Injection - Hypersonic SQL
+40021	FAIL	# SQL Injection - Oracle
+40022	FAIL	# SQL Injection - PostgreSQL
+90019	FAIL	# Server Side Code Injection
+90020	FAIL	# Remote OS Command Injection
+
+# Authentication and session management
+10010	MEDIUM	# Cookie No HttpOnly Flag
+10011	MEDIUM	# Cookie Without Secure Flag
+10017	MEDIUM	# Cross-Domain JavaScript Source File Inclusion
+
+# Information disclosure
+10024	MEDIUM	# Information Disclosure - Sensitive Information in URL
+10025	MEDIUM	# Information Disclosure - Sensitive Information in HTTP Referrer Header
+10026	MEDIUM	# HTTP Parameter Override
+
+# Input validation
+20012	MEDIUM	# Anti-CSRF Tokens Scanner
+20014	MEDIUM	# HTTP Parameter Pollution
+20015	MEDIUM	# Heartbleed OpenSSL Vulnerability
+
+# Ignore health check endpoints
+.*\/health.*	IGNORE
+.*\/metrics.*	IGNORE
+.*\/docs.*	IGNORE
+.*\/openapi\.json.*	IGNORE

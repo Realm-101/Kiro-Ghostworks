@@ -1,0 +1,55 @@
+{
+  "name": "ghostworks-saas",
+  "version": "1.0.0",
+  "description": "Production-grade, AI-native multi-tenant SaaS platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=services/api",
+    "build": "npm run build --workspaces",
+    "test": "python tests/run_tests.py",
+    "test:unit": "python -m pytest tests/unit/ services/api/tests/ -m unit --cov=services/api --cov=packages/shared",
+    "test:integration": "python -m pytest tests/api/ -m integration",
+    "test:e2e": "npm run test:e2e --workspace=apps/web",
+    "test:frontend": "npm run test --workspace=apps/web",
+    "test:performance": "k6 run tests/performance/api-load-test.js",
+    "test:all": "python tests/run_tests.py",
+    "test:coverage": "python -m pytest --cov=services/api --cov=packages/shared --cov-report=html --cov-report=term",
+    "lint": "npm run lint --workspaces",
+    "lint:python": "flake8 services/api tests/ --max-line-length=100",
+    "format": "prettier --write . && black services/api tests/",
+    "format:python": "black services/api tests/",
+    "type-check": "npm run type-check --workspaces"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ghostworks/saas-platform.git"
+  },
+  "keywords": [
+    "saas",
+    "multi-tenant",
+    "ai-native",
+    "monorepo",
+    "typescript",
+    "nextjs",
+    "fastapi"
+  ],
+  "author": "Ghostworks Team",
+  "license": "MIT"
+}
