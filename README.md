@@ -4,7 +4,7 @@ A production-grade, AI-native multi-tenant SaaS platform that demonstrates auton
 
 <img width="1316" height="1110" alt="ghostworks2" src="https://github.com/user-attachments/assets/f36df201-3c1a-4aa0-a764-30cc8461c4a5" />
 
-<img width="1316" height="1110" alt="ghostworks2" src="https://github.com/apps/web/Ghostworksdemo.gif" />
+<img width="1316" height="1110" alt="ghostworks2" src="[https://github.com/apps/web/Ghostworksdemo.gif](https://github.com/Realm-101/Kiro-Ghostworks/blob/main/apps/web/Ghostworksdemo.gif)" />
 ## 🚀 Quick Start
 
 **Prerequisites**: Docker and Docker Compose
